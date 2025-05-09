@@ -6,7 +6,7 @@
 #   NPM api https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema
 #           https://github.com/NginxProxyManager/nginx-proxy-manager/tree/develop/backend/schema/components
 
-VERSION="3.0.0"
+VERSION="3.0.1"
 
 #################################
 # This script allows you to manage Nginx Proxy Manager via the API. It provides
@@ -500,6 +500,10 @@ colorize_boolean() {
         echo "${COLOR_GREEN}true${CoR}"
     elif [ "$value" = "false" ]; then
         echo "${COLOR_RED}false${CoR}"
+    elif [ "$value" = "Enabled" ]; then
+        echo "${COLOR_GREEN}Enabled${CoR}"
+    elif [ "$value" = "Disabled" ]; then
+        echo "${COLOR_RED}Disabled${CoR}"
     else
         # If value is neither true nor false, convert to boolean
         if [ "$value" = "1" ] || [ "$value" = "yes" ] || [ "$value" = "on" ]; then
@@ -1643,8 +1647,8 @@ host_list() {
   # Clean the response to remove control characters
   CLEANED_RESPONSE=$(echo "$RESPONSE" | tr -d '\000-\031')
 
-  echo "$CLEANED_RESPONSE" | jq -r '.[] | "\(.id) \(.domain_names | join(", ")) \(.enabled) \(.certificate_id)"' | while read -r id domain enabled certificate_id; do
-		if [ "$enabled" = "true" ]; then
+  echo "$CLEANED_RESPONSE" | jq -r '.[] | [    .id,    (.domain_names | if type == "array" then join(", ") else . end),    .enabled,    .certificate_id] | @tsv' | while IFS=$'\t' read -r id domain enabled certificate_id; do
+		if [ "$enabled" = "true" ] || [ "$enabled" = "1" ]; then
   		status="$(echo -e "${WHITE_ON_GREEN} enabled ${CoR}")"
 		else
   		status="$(echo -e "${COLOR_RED} disable ${CoR}")"
@@ -2203,7 +2207,7 @@ host_show() {
     echo -e "│   • Host: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_host')${CoR}"
     echo -e "│   • Port: ${COLOR_GREEN_b}$(echo "$response" | jq -r '.forward_port')${CoR}"
     echo -e "│   • Scheme: $(colorize_boolean $(echo "$response" | jq -r '.forward_scheme'))"
-    echo -e "│ ✅ Status: $(colorize_boolean $(echo "$response" | jq -r '.enabled | if . then "Enabled" else "Disabled" end'))"
+    echo -e "│ ✅ Status: $(colorize_boolean $(echo "$response" | jq -r '.enabled | if . == true or . == 1 then "Enabled" else "Disabled" end'))"
     echo -e "│ 🔒 SSL Configuration:"
     echo -e "│    • Certificate ID: ${COLOR_ORANGE}$(echo "$response" | jq -r '.certificate_id')${CoR}"
     echo -e "│    • SSL Forced: $(colorize_boolean $(echo "$response" | jq -r '.ssl_forced | if . then "true" else "false" end'))"
