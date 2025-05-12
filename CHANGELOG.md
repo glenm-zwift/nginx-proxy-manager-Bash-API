@@ -2,6 +2,20 @@
 
 All notable changes to the npm-api.sh script will be documented in this file.
 
+## [3.0.2] - 2025-04-15
+
+### 🔄 Breaking Changes
+
+- **Domain input now in JSON array format**
+  ```diff
+  - OLD: ./npm-api.sh --host-create example.com -i
+  + NEW: ./npm-api.sh --host-create '["example.com","www.example.com"]' -i 192.168.1.10 -p 8080
+  ```
+  The domain input for the `--host-create` command has been changed to accept a JSON array format. This allows for multiple domains to be specified in a single command.
+  The old format of providing a single domain as a string is no longer supported.
+  This change improves the flexibility and usability of the command, root and www domains can be added in a single command.
+  Certificate generation is supported for this input format.
+
 ## [3.0.0] - 2025-03-24
 
 ### 🔄 Breaking Changes
