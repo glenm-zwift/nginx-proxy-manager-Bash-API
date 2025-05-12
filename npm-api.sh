@@ -1433,20 +1433,31 @@ create_or_update_proxy_host() {
     fi
     FUNCTION_CALLED=1
 
+    # Validate DOMAIN_NAMES as JSON array
+    if ! echo "$DOMAIN_NAMES" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+        echo -e "\n ⛔ ${COLOR_RED}ERROR: DOMAIN_NAMES must be a non-empty JSON array, e.g. '[\"site1.com\",\"www.site1.com\"]'${CoR}\n"
+        exit 1
+    fi
+
+    # Get the first domain (for querying and display)
+    FIRST_DOMAIN=$(echo "$DOMAIN_NAMES" | jq -r '.[0]')
+
     # Check for wildcard domains in host creation
-    if [[ "$DOMAIN_NAMES" == \** ]]; then
+    if [[ "$FIRST_DOMAIN" == \** ]]; then
         echo -e "\n ⛔ ${COLOR_RED}ERROR: Wildcard domains (*.domain.com) are not allowed for host creation${CoR}"
         echo -e " Wildcards are only supported for SSL certificates"
         exit 1
     fi
 
   check_token_notverbose
-    # Check if the host already exists
+    # Check if the host already exists (match ANY domain in the input array)
     #echo -e "\n 🔎 Checking if the host ${COLOR_RED}$DOMAIN_NAMES${CoR} already exists..."
     RESPONSE=$(curl -s -X GET "$BASE_URL/nginx/proxy-hosts" \
     -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
 
-    EXISTING_HOST=$(echo "$RESPONSE" | jq -r --arg DOMAIN "$DOMAIN_NAMES" '.[] | select(.domain_names[] == $DOMAIN)')
+    EXISTING_HOST=$(echo "$RESPONSE" | jq -r --argjson DOMAINS "$DOMAIN_NAMES" '
+        .[] | select(.domain_names | any(. as $d | $DOMAINS | index($d)))'
+    )
     HOST_ID=$(echo "$EXISTING_HOST" | jq -r '.id // empty')
 
     # Prepare JSON data for API
@@ -1464,7 +1475,7 @@ create_or_update_proxy_host() {
 
     # Generate JSON
     DATA=$(jq -n \
-        --arg domain "$DOMAIN_NAMES" \
+        --argjson domain_names "$DOMAIN_NAMES" \
         --arg host "$FORWARD_HOST" \
         --arg port "$FORWARD_PORT" \
         --arg scheme "$FORWARD_SCHEME" \
@@ -1476,7 +1487,7 @@ create_or_update_proxy_host() {
         --argjson enabled true \
         --argjson locations "$CUSTOM_LOCATIONS_ESCAPED" \
         '{
-            domain_names: [$domain],
+            domain_names: $domain_names,
             forward_host: $host,
             forward_port: ($port | tonumber),
             access_list_id: null,
@@ -1537,7 +1548,7 @@ create_or_update_proxy_host() {
         #echo -e " ${COLOR_YELLOW}🔐 Generate SSL certificate CREATE_OR_${CoR}"
         
         # Check if it's a wildcard certificate
-        if [[ "$DOMAIN_NAMES" == *"*."* ]]; then
+        if [[ "$FIRST_DOMAIN" == *"*."* ]]; then
             if [ -z "$DNS_PROVIDER" ] || [ -z "$DNS_API_KEY" ]; then
                 echo -e " ⚠️ ${COLOR_YELLOW}Wildcard certificate requires DNS challenge${CoR}"
                 echo -e " 👉 Please provide DNS provider and API key:"
@@ -1553,7 +1564,7 @@ create_or_update_proxy_host() {
                 fi
                 
                 # Verify domain is managed by Cloudflare
-                local domain=${DOMAIN_NAMES#\*.}
+                local domain=${FIRST_DOMAIN#\*.}
                 local zone_check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$domain" \
                     -H "X-Auth-Email: $CERT_EMAIL" \
                     -H "X-Auth-Key: $DNS_API_KEY" \
@@ -1572,7 +1583,7 @@ create_or_update_proxy_host() {
         DNS_CREDENTIALS_JSON=${DNS_CREDENTIALS_JSON:-"{}"}
         
         # Generate the certificate
-        cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_CREDENTIALS_JSON" "$HOST_SSL_ENABLE" "$DOMAIN_NAMES"
+        cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_CREDENTIALS_JSON" "$HOST_SSL_ENABLE" "$FIRST_DOMAIN"
 
         # Check SSL creation 
             CERT_CHECK=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
@@ -1608,6 +1619,7 @@ create_or_update_proxy_host() {
                 if [ "$UPDATE_STATUS" -eq 200 ]; then
                 echo -e "\n ✅ ${COLOR_GREEN}SSL Configuration Complete ${CoR}🎉"
                 echo -e " 📋 CHECK  SSL Status for ${COLOR_GREEN}$DOMAIN_NAMES${CoR}:"
+                    echo -e "    ├─ 🔗 Proxy host: $DOMAIN_NAMES (ID: ${COLOR_YELLOW}$PROXY_ID${COLOR_GREEN})${CoR}"
                     echo -e "    ├─ 🔒 SSL: ${COLOR_GREEN}Enabled${CoR}"
                     echo -e "    ├─ 📜 Certificate ID: $CERT_ID"
                     echo -e "    ├─ 🚀 HTTP/2: ${COLOR_GREEN}Active${CoR}"
@@ -1849,6 +1861,15 @@ host_update() {
     UPDATED_DATA=$(echo "$FILTERED_DATA" \
       | jq --argjson newVal "$(echo "$NEW_VALUE" | jq -R 'tonumber? // 0')" \
            '.forward_port = $newVal')
+  elif [ "$FIELD" = "domain_names" ]; then
+    # Validate that the input is a JSON array
+    echo "$NEW_VALUE" | jq . > /dev/null 2>&1 || {
+      echo -e "${COLOR_RED}ERROR:${CoR} Value for domain_names must be a valid JSON array."
+      exit 1
+    }
+    UPDATED_DATA=$(echo "$FILTERED_DATA" \
+      | jq --argjson newVal "$NEW_VALUE" \
+           '.domain_names = $newVal')
   else
     UPDATED_DATA=$(echo "$FILTERED_DATA" \
       | jq --arg newVal "$NEW_VALUE" \
