@@ -6,7 +6,7 @@
 [![Stargazers][stars-shield]][stars]
 
 
-# Nginx Proxy Manager CLI Script V3.0.0 🚀
+# Nginx Proxy Manager CLI Script V3.0.2 🚀
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@
 > The  --restore command is disabled  (a fix is in progress).
 > 
 
-# V3.0.0 is out 🚀
+# V3.0.2 is out 🚀
 Check the latest release with major improvements and fixes.
 
 ## Description
