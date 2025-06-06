@@ -70,7 +70,7 @@ The excellent NPM (![Nginx Proxy Manager](https://github.com/NginxProxyManager/n
 
 ## Installation 
 ```bash
-wget https://raw.githubusercontent.com/Erreur32/nginx-proxy-manager-Bash-API/main/npm-api.sh
+wget https://raw.githubusercontent.com/glenm-zwift/nginx-proxy-manager-Bash-API/main/npm-api.sh
 chmod +x npm-api.sh
 # Run the script.
 ./npm-api.sh
