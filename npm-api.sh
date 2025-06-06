@@ -1583,13 +1583,13 @@ create_or_update_proxy_host() {
         DNS_CREDENTIALS_JSON=${DNS_CREDENTIALS_JSON:-"{}"}
         
         # Generate the certificate
-        cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_CREDENTIALS_JSON" "$HOST_SSL_ENABLE" "$FIRST_DOMAIN"
+        cert_generate "$CERT_DOMAIN" "$CERT_EMAIL" "$DNS_PROVIDER" "$DNS_CREDENTIALS_JSON" "$HOST_SSL_ENABLE" "$DOMAIN_NAMES"
 
         # Check SSL creation 
             CERT_CHECK=$(curl -s -X GET "$BASE_URL/nginx/certificates" \
                 -H "Authorization: Bearer $(cat "$TOKEN_FILE")")
             
-        CERT_ID=$(echo "$CERT_CHECK" | jq -r --arg domain "$CERT_DOMAIN" \
+        CERT_ID=$(echo "$CERT_CHECK" | jq -r --argjson domain "$CERT_DOMAIN" \
                 '.[] | select(.domain_names[] == $domain) | .id' | sort -n | tail -n1)
 
             if [ -n "$CERT_ID" ]; then
